@@ -348,7 +348,10 @@ export default function BeritaViewModal({ open, onClose, berita, onEdit }) {
                   </h4>
                   <p className="text-blue-700 leading-relaxed">
                     Ini adalah tampilan preview untuk berita{" "}
-                    <span className="font-semibold">"{berita.judul}"</span>.
+                    <span className="font-semibold">
+                      &quot;{berita.judul}&quot;
+                    </span>
+                    .
                     {berita.status === "published"
                       ? " Berita ini sudah dipublikasi dan dapat dilihat oleh pengunjung website."
                       : " Berita ini masih dalam status draft dan belum terlihat oleh pengunjung."}

@@ -59,7 +59,7 @@ export default function DeleteConfirmModal({
             {title && (
               <div className="bg-gray-50 rounded-xl p-4 mb-4">
                 <p className="text-sm font-medium text-gray-900 line-clamp-2">
-                  "{title}"
+                  &quot;{title}&quot;
                 </p>
               </div>
             )}

@@ -309,7 +309,7 @@ export default function BeritaPage() {
                     <div className="flex flex-wrap gap-2">
                       {searchTerm && (
                         <span className="px-3 py-1.5 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-lg border border-yellow-200">
-                          Pencarian: "{searchTerm}"
+                          Pencarian: &quot;{searchTerm}&quot;
                         </span>
                       )}
                       {selectedCategory !== "all" && (
