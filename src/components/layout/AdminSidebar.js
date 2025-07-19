@@ -1,9 +1,11 @@
+// iniwebumkm-admin/src/components/layout/AdminSidebar.js
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   HomeIcon,
   NewspaperIcon,
+  BuildingStorefrontIcon,
   XMarkIcon,
   UserCircleIcon,
   BuildingOfficeIcon,
@@ -23,6 +25,13 @@ const navigation = [
     icon: NewspaperIcon,
     color: "from-green-500 to-emerald-600",
     description: "Kelola konten berita",
+  },
+  {
+    name: "Kelola UMKM",
+    href: "/umkm",
+    icon: BuildingStorefrontIcon,
+    color: "from-emerald-500 to-teal-600",
+    description: "Manajemen UMKM lokal",
   },
 ];
 
@@ -75,7 +84,10 @@ export default function AdminSidebar({ open, setOpen }) {
         <nav className="mt-8 px-4">
           <div className="space-y-3">
             {navigation.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive =
+                pathname === item.href ||
+                (item.href !== "/" && pathname.startsWith(item.href));
+
               return (
                 <Link
                   key={item.name}
@@ -118,7 +130,11 @@ export default function AdminSidebar({ open, setOpen }) {
                   <div className="flex-1">
                     <div className="font-semibold">{item.name}</div>
                     <div
-                      className={`text-xs ${isActive ? "text-green-600" : "text-gray-500 group-hover:text-green-600"}`}
+                      className={`text-xs ${
+                        isActive
+                          ? "text-green-600"
+                          : "text-gray-500 group-hover:text-green-600"
+                      }`}
                     >
                       {item.description}
                     </div>

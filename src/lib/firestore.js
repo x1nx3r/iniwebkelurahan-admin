@@ -234,3 +234,176 @@ export async function getBeritaStats() {
     throw error;
   }
 }
+
+// UMKM Collection reference
+const UMKM_COLLECTION = "umkm";
+
+/**
+ * Get all UMKM with optional filtering
+ */
+export async function getAllUMKM(options = {}) {
+  try {
+    const {
+      kategori = null,
+      limit: queryLimit = 100,
+      lastDoc = null,
+      status = null,
+    } = options;
+
+    let q = collection(db, UMKM_COLLECTION);
+    const constraints = [];
+
+    // Filter by status
+    if (status && status !== "all") {
+      constraints.push(where("status", "==", status));
+    }
+
+    // Filter by category if implemented
+    if (kategori && kategori !== "all") {
+      constraints.push(where("kategori", "==", kategori));
+    }
+
+    // Order by name
+    constraints.push(orderBy("nama"));
+
+    // Limit results
+    if (queryLimit) {
+      constraints.push(limit(queryLimit));
+    }
+
+    // Pagination
+    if (lastDoc) {
+      constraints.push(startAfter(lastDoc));
+    }
+
+    q = query(q, ...constraints);
+    const querySnapshot = await getDocs(q);
+    const umkm = [];
+
+    querySnapshot.forEach((doc) => {
+      umkm.push({
+        id: doc.id,
+        ...doc.data(),
+      });
+    });
+
+    return umkm;
+  } catch (error) {
+    console.error("Error getting UMKM:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get UMKM by ID
+ */
+export async function getUMKMById(id) {
+  try {
+    const docRef = doc(db, UMKM_COLLECTION, id);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      return {
+        id: docSnap.id,
+        ...docSnap.data(),
+      };
+    } else {
+      return null;
+    }
+  } catch (error) {
+    console.error("Error getting UMKM by ID:", error);
+    throw error;
+  }
+}
+
+/**
+ * Create new UMKM
+ */
+export async function createUMKM(umkmData) {
+  try {
+    // Generate slug if not provided
+    const slug = umkmData.slug || generateSlug(umkmData.nama);
+
+    const data = {
+      ...umkmData,
+      slug,
+      status: umkmData.status || "active",
+      featured: umkmData.featured || false,
+      views: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    // Use slug as document ID
+    const docRef = doc(db, UMKM_COLLECTION, slug);
+    await setDoc(docRef, data);
+
+    return slug;
+  } catch (error) {
+    console.error("Error creating UMKM:", error);
+    throw error;
+  }
+}
+
+/**
+ * Update UMKM
+ */
+export async function updateUMKM(id, umkmData) {
+  try {
+    const docRef = doc(db, UMKM_COLLECTION, id);
+    await updateDoc(docRef, {
+      ...umkmData,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Error updating UMKM:", error);
+    throw error;
+  }
+}
+
+/**
+ * Delete UMKM
+ */
+export async function deleteUMKM(id) {
+  try {
+    const docRef = doc(db, UMKM_COLLECTION, id);
+    await deleteDoc(docRef);
+  } catch (error) {
+    console.error("Error deleting UMKM:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get UMKM statistics
+ */
+export async function getUMKMStats() {
+  try {
+    const umkmData = await getAllUMKM();
+
+    const stats = {
+      totalUMKM: umkmData.length,
+      activeUMKM: umkmData.filter((item) => item.status === "active").length,
+      inactiveUMKM: umkmData.filter((item) => item.status === "inactive")
+        .length,
+      featuredUMKM: umkmData.filter((item) => item.featured).length,
+    };
+
+    return stats;
+  } catch (error) {
+    console.error("Error getting UMKM stats:", error);
+    throw error;
+  }
+}
+
+/**
+ * Helper function to generate slug
+ */
+function generateSlug(text) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "") // Remove special characters
+    .replace(/\s+/g, "-") // Replace spaces with hyphens
+    .replace(/-+/g, "-") // Replace multiple hyphens with single hyphen
+    .trim();
+}
