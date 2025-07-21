@@ -22,7 +22,8 @@ export default function UMKMList({ umkm, loading, onUpdate, onView, onEdit }) {
   const handleDelete = async (item) => {
     try {
       setDeleting(true);
-      await deleteUMKM(item.id);
+      // Use the document ID (which should be the slug)
+      await deleteUMKM(item.id); // item.id should be the slug now
       toast.success("✅ UMKM berhasil dihapus!");
       onUpdate();
       setDeleteModal({ open: false, item: null });

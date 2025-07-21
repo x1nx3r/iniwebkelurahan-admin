@@ -1,4 +1,4 @@
-// admin-kelurahan/src/lib/firestore.js
+// iniwebumkm-admin/src/lib/firestore.js
 import {
   collection,
   getDocs,
@@ -7,10 +7,12 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  setDoc, // Add this import
   query,
   orderBy,
   where,
   limit,
+  startAfter, // Add this import
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "./firebase.js";
@@ -258,11 +260,6 @@ export async function getAllUMKM(options = {}) {
       constraints.push(where("status", "==", status));
     }
 
-    // Filter by category if implemented
-    if (kategori && kategori !== "all") {
-      constraints.push(where("kategori", "==", kategori));
-    }
-
     // Order by name
     constraints.push(orderBy("nama"));
 
@@ -282,7 +279,8 @@ export async function getAllUMKM(options = {}) {
 
     querySnapshot.forEach((doc) => {
       umkm.push({
-        id: doc.id,
+        id: doc.id, // Use the document ID (slug) as the primary ID
+        docId: doc.id, // Keep document ID for reference
         ...doc.data(),
       });
     });
@@ -297,21 +295,22 @@ export async function getAllUMKM(options = {}) {
 /**
  * Get UMKM by ID
  */
-export async function getUMKMById(id) {
+export async function getUMKMBySlug(slug) {
   try {
-    const docRef = doc(db, UMKM_COLLECTION, id);
+    const docRef = doc(db, UMKM_COLLECTION, slug);
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
       return {
-        id: docSnap.id,
+        id: docSnap.id, // This will be the slug
+        docId: docSnap.id, // Keep the document ID separate
         ...docSnap.data(),
       };
     } else {
       return null;
     }
   } catch (error) {
-    console.error("Error getting UMKM by ID:", error);
+    console.error("Error getting UMKM by slug:", error);
     throw error;
   }
 }
@@ -324,8 +323,13 @@ export async function createUMKM(umkmData) {
     // Generate slug if not provided
     const slug = umkmData.slug || generateSlug(umkmData.nama);
 
+    // Generate a new numeric ID for internal reference (optional)
+    const timestamp = Date.now();
+    const numericId = parseInt(timestamp.toString().slice(-6)); // Use last 6 digits of timestamp
+
     const data = {
       ...umkmData,
+      id: numericId, // Keep numeric ID for compatibility
       slug,
       status: umkmData.status || "active",
       featured: umkmData.featured || false,
@@ -348,15 +352,29 @@ export async function createUMKM(umkmData) {
 /**
  * Update UMKM
  */
-export async function updateUMKM(id, umkmData) {
+export async function updateUMKM(docId, umkmData) {
   try {
-    const docRef = doc(db, UMKM_COLLECTION, id);
+    console.log("Updating UMKM with document ID:", docId);
+
+    const docRef = doc(db, UMKM_COLLECTION, docId);
+
+    // Remove any undefined or null values and the docId from the update data
+    const { docId: _, ...cleanData } = umkmData;
+    const filteredData = Object.fromEntries(
+      Object.entries(cleanData).filter(
+        ([_, value]) => value !== undefined && value !== null,
+      ),
+    );
+
     await updateDoc(docRef, {
-      ...umkmData,
+      ...filteredData,
       updatedAt: serverTimestamp(),
     });
+
+    console.log("Successfully updated UMKM:", docId);
   } catch (error) {
     console.error("Error updating UMKM:", error);
+    console.error("Document ID:", docId);
     throw error;
   }
 }
@@ -364,9 +382,10 @@ export async function updateUMKM(id, umkmData) {
 /**
  * Delete UMKM
  */
-export async function deleteUMKM(id) {
+export async function deleteUMKM(docId) {
   try {
-    const docRef = doc(db, UMKM_COLLECTION, id);
+    console.log("Deleting UMKM with document ID:", docId);
+    const docRef = doc(db, UMKM_COLLECTION, docId);
     await deleteDoc(docRef);
   } catch (error) {
     console.error("Error deleting UMKM:", error);

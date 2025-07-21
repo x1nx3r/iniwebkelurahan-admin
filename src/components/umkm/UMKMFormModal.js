@@ -49,10 +49,6 @@ export default function UMKMFormModal({
     status: "active",
     featured: false,
     foto: "",
-    kategori: "",
-    jam_operasional: "",
-    deskripsi_lengkap: "",
-    produk_layanan: "",
     sosialMedia: {},
   });
 
@@ -62,9 +58,27 @@ export default function UMKMFormModal({
 
   useEffect(() => {
     if (open && initialData) {
+      // Debug logging
+      console.log("Initial data received:", initialData);
+      console.log("Initial data keys:", Object.keys(initialData));
+      console.log("Document ID options:", {
+        id: initialData.id,
+        slug: initialData.slug,
+        docId: initialData.docId,
+      });
+
       setFormData({
-        ...initialData,
+        nama: initialData.nama || "",
+        pemilik: initialData.pemilik || "",
+        deskripsi: initialData.deskripsi || "",
+        alamat: initialData.alamat || "",
+        telefon: initialData.telefon || "",
+        status: initialData.status || "active",
+        featured: initialData.featured || false,
+        foto: initialData.foto || "",
         sosialMedia: initialData.sosialMedia || {},
+        // Preserve the document ID for editing
+        slug: initialData.slug || initialData.id,
       });
 
       if (initialData.foto) {
@@ -88,10 +102,6 @@ export default function UMKMFormModal({
         status: "active",
         featured: false,
         foto: "",
-        kategori: "",
-        jam_operasional: "",
-        deskripsi_lengkap: "",
-        produk_layanan: "",
         sosialMedia: {},
       });
       setImageData(null);
@@ -166,19 +176,51 @@ export default function UMKMFormModal({
 
       const dataToSubmit = {
         ...formData,
-        // Generate slug for new UMKM
-        slug: isEdit ? formData.slug : generateSlug(formData.nama),
-        // Convert empty strings to null for optional fields
-        kategori: formData.kategori.trim() || null,
-        jam_operasional: formData.jam_operasional.trim() || null,
-        deskripsi_lengkap: formData.deskripsi_lengkap.trim() || null,
-        produk_layanan: formData.produk_layanan.trim() || null,
+        // Generate slug for new UMKM, preserve existing slug for updates
+        slug: isEdit
+          ? formData.slug || generateSlug(formData.nama)
+          : generateSlug(formData.nama),
       };
 
-      if (isEdit && initialData?.id) {
-        await updateUMKM(initialData.id, dataToSubmit);
+      if (isEdit && initialData) {
+        // Determine the correct document ID to use
+        let documentId;
+
+        // Try different ID fields in order of preference
+        if (
+          typeof initialData.slug === "string" &&
+          initialData.slug.length > 0
+        ) {
+          documentId = initialData.slug;
+        } else if (
+          typeof initialData.id === "string" &&
+          initialData.id.length > 0
+        ) {
+          documentId = initialData.id;
+        } else if (
+          typeof initialData.docId === "string" &&
+          initialData.docId.length > 0
+        ) {
+          documentId = initialData.docId;
+        } else {
+          // Fallback: generate from name
+          documentId = generateSlug(initialData.nama);
+        }
+
+        console.log("Edit mode - Document ID determination:");
+        console.log("- Initial data:", initialData);
+        console.log("- Selected document ID:", documentId);
+        console.log("- Document ID type:", typeof documentId);
+        console.log("- Data to submit:", dataToSubmit);
+
+        if (!documentId || typeof documentId !== "string") {
+          throw new Error("Invalid document ID for update operation");
+        }
+
+        await updateUMKM(documentId, dataToSubmit);
         toast.success("UMKM berhasil diperbarui!");
       } else {
+        console.log("Create mode - Data to submit:", dataToSubmit);
         await createUMKM(dataToSubmit);
         toast.success("UMKM berhasil ditambahkan!");
       }
@@ -186,6 +228,12 @@ export default function UMKMFormModal({
       onSuccess();
     } catch (error) {
       console.error("Error saving UMKM:", error);
+      console.error("Error details:", {
+        message: error.message,
+        initialData,
+        formData,
+        isEdit,
+      });
       toast.error(error.message || "Gagal menyimpan UMKM");
     } finally {
       setSubmitting(false);
@@ -209,7 +257,7 @@ export default function UMKMFormModal({
       className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={handleBackdropClick}
     >
-      <div className="bg-white/95 backdrop-blur-xl rounded-3xl max-w-6xl w-full max-h-[95vh] overflow-hidden shadow-2xl border border-white/20">
+      <div className="bg-white/95 backdrop-blur-xl rounded-3xl max-w-5xl w-full max-h-[95vh] overflow-hidden shadow-2xl border border-white/20">
         {/* Header */}
         <div className="sticky top-0 bg-white/90 backdrop-blur-xl border-b border-gray-200/50 p-6 z-10">
           <div className="flex items-center justify-between">
@@ -245,7 +293,7 @@ export default function UMKMFormModal({
         <div className="overflow-y-auto max-h-[calc(95vh-200px)]">
           <form onSubmit={handleSubmit} className="p-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Main content */}
+              {/* Main content - Keep all your existing form fields exactly as they are */}
               <div className="lg:col-span-2 space-y-8">
                 {/* Basic Information */}
                 <div className="bg-gradient-to-r from-blue-50/80 to-indigo-50/80 backdrop-blur-sm rounded-2xl p-6 border border-white/50 shadow-sm">
@@ -296,17 +344,16 @@ export default function UMKMFormModal({
                     {/* Deskripsi */}
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-3">
-                        Deskripsi Singkat{" "}
-                        <span className="text-red-500">*</span>
+                        Deskripsi UMKM <span className="text-red-500">*</span>
                       </label>
                       <textarea
                         name="deskripsi"
                         value={formData.deskripsi}
                         onChange={handleInputChange}
                         required
-                        rows={3}
+                        rows={4}
                         className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/80 backdrop-blur-sm resize-none"
-                        placeholder="Deskripsi singkat tentang UMKM ini..."
+                        placeholder="Deskripsi lengkap tentang UMKM ini..."
                         disabled={submitting}
                       />
                     </div>
@@ -353,84 +400,6 @@ export default function UMKMFormModal({
                         onChange={handleInputChange}
                         className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 bg-white/80 backdrop-blur-sm"
                         placeholder="Contoh: 081234567890"
-                        disabled={submitting}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Additional Information */}
-                <div className="bg-gradient-to-r from-purple-50/80 to-pink-50/80 backdrop-blur-sm rounded-2xl p-6 border border-white/50 shadow-sm">
-                  <div className="flex items-center space-x-3 mb-4">
-                    <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
-                      <UserIcon className="h-5 w-5 text-white" />
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-900">
-                      Informasi Tambahan
-                    </h3>
-                  </div>
-
-                  <div className="space-y-6">
-                    {/* Kategori */}
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-3">
-                        Kategori Usaha
-                      </label>
-                      <input
-                        type="text"
-                        name="kategori"
-                        value={formData.kategori}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 bg-white/80 backdrop-blur-sm"
-                        placeholder="Contoh: Kuliner, Fashion, Kerajinan"
-                        disabled={submitting}
-                      />
-                    </div>
-
-                    {/* Jam Operasional */}
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-3">
-                        Jam Operasional
-                      </label>
-                      <input
-                        type="text"
-                        name="jam_operasional"
-                        value={formData.jam_operasional}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 bg-white/80 backdrop-blur-sm"
-                        placeholder="Contoh: Senin-Minggu 08:00-20:00"
-                        disabled={submitting}
-                      />
-                    </div>
-
-                    {/* Deskripsi Lengkap */}
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-3">
-                        Deskripsi Lengkap
-                      </label>
-                      <textarea
-                        name="deskripsi_lengkap"
-                        value={formData.deskripsi_lengkap}
-                        onChange={handleInputChange}
-                        rows={4}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 bg-white/80 backdrop-blur-sm resize-none"
-                        placeholder="Deskripsi detail tentang UMKM, sejarah, keunggulan, dll..."
-                        disabled={submitting}
-                      />
-                    </div>
-
-                    {/* Produk/Layanan */}
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-3">
-                        Produk/Layanan
-                      </label>
-                      <textarea
-                        name="produk_layanan"
-                        value={formData.produk_layanan}
-                        onChange={handleInputChange}
-                        rows={3}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 bg-white/80 backdrop-blur-sm resize-none"
-                        placeholder="Daftar produk atau layanan yang ditawarkan..."
                         disabled={submitting}
                       />
                     </div>
@@ -595,9 +564,9 @@ export default function UMKMFormModal({
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Kategori:</span>
-                      <span className="font-medium capitalize">
-                        {formData.kategori || "Belum diisi"}
+                      <span className="text-gray-600">Kontak:</span>
+                      <span className="font-medium">
+                        {formData.telefon ? "📞 Ada" : "❌ Tidak ada"}
                       </span>
                     </div>
                   </div>
