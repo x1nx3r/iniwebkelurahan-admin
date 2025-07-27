@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { getUMKMBySlug, updateUMKM, deleteUMKM } from "@/lib/firestore-admin";
 
 // GET /api/umkm/[id]
-export async function GET(request, context) {
-  const { params } = await context;
+export async function GET(request, props) {
+  const params = await props.params;
   try {
     const umkm = await getUMKMBySlug(params.id);
     if (!umkm) {
@@ -20,8 +20,8 @@ export async function GET(request, context) {
 }
 
 // PUT /api/umkm/[id]
-export async function PUT(request, context) {
-  const { params } = await context;
+export async function PUT(request, props) {
+  const params = await props.params;
   try {
     const updates = await request.json();
     await updateUMKM(params.id, updates);
@@ -36,8 +36,8 @@ export async function PUT(request, context) {
 }
 
 // DELETE /api/umkm/[id]
-export async function DELETE(request, context) {
-  const { params } = await context;
+export async function DELETE(request, props) {
+  const params = await props.params;
   try {
     await deleteUMKM(params.id);
     return NextResponse.json({ success: true });

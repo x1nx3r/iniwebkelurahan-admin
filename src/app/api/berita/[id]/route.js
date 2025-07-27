@@ -6,7 +6,8 @@ import {
   deleteBerita,
 } from "@/lib/firestore-admin";
 
-export async function GET(request, { params }) {
+export async function GET(request, props) {
+  const params = await props.params;
   try {
     const berita = await getBeritaById(params.id);
     if (!berita) {
@@ -22,7 +23,8 @@ export async function GET(request, { params }) {
   }
 }
 
-export async function PUT(request, { params }) {
+export async function PUT(request, props) {
+  const params = await props.params;
   try {
     const updates = await request.json();
     await updateBerita(params.id, updates);
@@ -36,7 +38,8 @@ export async function PUT(request, { params }) {
   }
 }
 
-export async function DELETE(request, { params }) {
+export async function DELETE(request, props) {
+  const params = await props.params;
   try {
     await deleteBerita(params.id);
     return NextResponse.json({ success: true });
