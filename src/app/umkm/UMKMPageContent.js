@@ -6,7 +6,7 @@ import AdminLayout from "@/components/layout/AdminLayout";
 import UMKMList from "@/components/umkm/UMKMList";
 import UMKMFormModal from "@/components/umkm/UMKMFormModal";
 import UMKMViewModal from "@/components/umkm/UMKMViewModal";
-import { getAllUMKM } from "@/lib/firestore";
+import { apiClient } from "@/lib/api-client";
 import {
   PlusIcon,
   MagnifyingGlassIcon,
@@ -14,6 +14,7 @@ import {
   FunnelIcon,
   SparklesIcon,
   XMarkIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 
 const statusOptions = [
@@ -31,6 +32,7 @@ export default function UMKMPageContent() {
   const [umkm, setUmkm] = useState([]);
   const [filteredUMKM, setFilteredUMKM] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState(
     searchParams.get("status") || "all",
@@ -53,10 +55,16 @@ export default function UMKMPageContent() {
   const loadUMKM = async () => {
     try {
       setLoading(true);
-      const data = await getAllUMKM();
+      setError(null);
+      console.log("🔍 Loading UMKM data from API...");
+
+      const data = await apiClient.fetchUMKM();
+      console.log("✅ Loaded UMKM data:", data.length, "items");
+
       setUmkm(data);
     } catch (error) {
-      console.error("Error loading UMKM:", error);
+      console.error("❌ Error loading UMKM:", error);
+      setError(error.message || "Failed to load UMKM data");
     } finally {
       setLoading(false);
     }
@@ -67,12 +75,15 @@ export default function UMKMPageContent() {
 
     // Filter by search term
     if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
       filtered = filtered.filter(
         (item) =>
-          item.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          item.pemilik.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          item.deskripsi.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          item.alamat.toLowerCase().includes(searchTerm.toLowerCase()),
+          item.nama?.toLowerCase().includes(searchLower) ||
+          item.pemilik?.toLowerCase().includes(searchLower) ||
+          item.deskripsi?.toLowerCase().includes(searchLower) ||
+          item.alamat?.toLowerCase().includes(searchLower) ||
+          item.kategori?.toLowerCase().includes(searchLower) ||
+          item.produk?.toLowerCase().includes(searchLower),
       );
     }
 
@@ -84,8 +95,9 @@ export default function UMKMPageContent() {
     setFilteredUMKM(filtered);
   };
 
-  const handleUMKMUpdate = () => {
-    loadUMKM(); // Reload data after update/delete
+  const handleUMKMUpdate = async () => {
+    // Reload data after update/delete/create
+    await loadUMKM();
     setCreateModalOpen(false);
     setEditModalOpen(false);
     setSelectedUMKM(null);
@@ -106,11 +118,43 @@ export default function UMKMPageContent() {
     setCreateModalOpen(true);
   };
 
-  const isFiltered = searchTerm || selectedStatus !== "all";
+  const handleRetry = () => {
+    loadUMKM();
+  };
 
+  const isFiltered = searchTerm || selectedStatus !== "all";
   const selectedStatusData = statusOptions.find(
     (status) => status.value === selectedStatus,
   );
+
+  // Error state
+  if (error && !loading) {
+    return (
+      <AdminLayout>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl p-8 max-w-md w-full mx-6">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <ExclamationTriangleIcon className="h-8 w-8 text-red-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Gagal Memuat Data UMKM
+                </h3>
+                <p className="text-gray-600 mb-6">{error}</p>
+                <button
+                  onClick={handleRetry}
+                  className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-xl font-medium hover:from-green-600 hover:to-emerald-700 transition-all duration-200"
+                >
+                  Coba Lagi
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
@@ -140,11 +184,17 @@ export default function UMKMPageContent() {
                     <div className="flex items-center space-x-4 mt-3">
                       <div className="flex items-center space-x-2 text-sm text-gray-500">
                         <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                        <span>{umkm.length} total UMKM</span>
+                        <span>
+                          {loading ? "Memuat..." : `${umkm.length} total UMKM`}
+                        </span>
                       </div>
                       <div className="flex items-center space-x-2 text-sm text-gray-500">
                         <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                        <span>{filteredUMKM.length} ditampilkan</span>
+                        <span>
+                          {loading
+                            ? "..."
+                            : `${filteredUMKM.length} ditampilkan`}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -153,7 +203,8 @@ export default function UMKMPageContent() {
                 <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
                   <button
                     onClick={handleCreate}
-                    className="group relative overflow-hidden bg-gradient-to-r from-green-500 via-emerald-500 to-teal-600 text-white px-8 py-4 rounded-2xl font-semibold shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
+                    disabled={loading}
+                    className="group relative overflow-hidden bg-gradient-to-r from-green-500 via-emerald-500 to-teal-600 text-white px-8 py-4 rounded-2xl font-semibold shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-green-600 via-emerald-600 to-teal-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     <div className="relative flex items-center space-x-3">
@@ -189,12 +240,13 @@ export default function UMKMPageContent() {
                     <MagnifyingGlassIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-green-500 transition-colors duration-200" />
                     <input
                       type="text"
-                      placeholder="Cari UMKM, nama, pemilik, deskripsi, atau alamat..."
+                      placeholder="Cari UMKM, nama, pemilik, deskripsi, alamat, kategori, atau produk..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-12 pr-4 py-4 border border-gray-200/50 rounded-2xl focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200 bg-white/80 backdrop-blur-sm text-gray-900 placeholder-gray-500"
+                      disabled={loading}
+                      className="w-full pl-12 pr-4 py-4 border border-gray-200/50 rounded-2xl focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200 bg-white/80 backdrop-blur-sm text-gray-900 placeholder-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     />
-                    {searchTerm && (
+                    {searchTerm && !loading && (
                       <button
                         onClick={() => setSearchTerm("")}
                         className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
@@ -214,7 +266,8 @@ export default function UMKMPageContent() {
                     <select
                       value={selectedStatus}
                       onChange={(e) => setSelectedStatus(e.target.value)}
-                      className="w-full px-4 py-4 border border-gray-200/50 rounded-2xl focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200 bg-white/80 backdrop-blur-sm appearance-none cursor-pointer"
+                      disabled={loading}
+                      className="w-full px-4 py-4 border border-gray-200/50 rounded-2xl focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200 bg-white/80 backdrop-blur-sm appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {statusOptions.map((status) => (
                         <option key={status.value} value={status.value}>
@@ -230,7 +283,7 @@ export default function UMKMPageContent() {
 
                 {/* Reset button */}
                 <div className="lg:col-span-1 flex items-end">
-                  {isFiltered && (
+                  {isFiltered && !loading && (
                     <button
                       onClick={() => {
                         setSearchTerm("");
@@ -246,49 +299,51 @@ export default function UMKMPageContent() {
               </div>
 
               {/* Enhanced Results summary */}
-              <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-                <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200/50">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span className="text-sm font-medium text-green-700">
-                      {filteredUMKM.length} dari {umkm.length} UMKM
-                    </span>
+              {!loading && (
+                <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200/50">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                      <span className="text-sm font-medium text-green-700">
+                        {filteredUMKM.length} dari {umkm.length} UMKM
+                      </span>
+                    </div>
+
+                    {isFiltered && (
+                      <div className="flex flex-wrap gap-2">
+                        {searchTerm && (
+                          <span className="px-3 py-1.5 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-lg border border-yellow-200">
+                            Pencarian: &quot;{searchTerm}&quot;
+                          </span>
+                        )}
+                        {selectedStatus !== "all" && (
+                          <span className="px-3 py-1.5 bg-blue-100 text-blue-800 text-xs font-medium rounded-lg border border-blue-200">
+                            Status:{" "}
+                            {
+                              statusOptions.find(
+                                (s) => s.value === selectedStatus,
+                              )?.label
+                            }
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {isFiltered && (
-                    <div className="flex flex-wrap gap-2">
-                      {searchTerm && (
-                        <span className="px-3 py-1.5 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-lg border border-yellow-200">
-                          Pencarian: &quot;{searchTerm}&quot;
-                        </span>
-                      )}
-                      {selectedStatus !== "all" && (
-                        <span className="px-3 py-1.5 bg-blue-100 text-blue-800 text-xs font-medium rounded-lg border border-blue-200">
-                          Status:{" "}
-                          {
-                            statusOptions.find(
-                              (s) => s.value === selectedStatus,
-                            )?.label
-                          }
-                        </span>
-                      )}
-                    </div>
+                    <button
+                      onClick={() => {
+                        setSearchTerm("");
+                        setSelectedStatus("all");
+                      }}
+                      className="group flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-gray-100 to-slate-100 hover:from-gray-200 hover:to-slate-200 text-gray-700 rounded-xl font-medium transition-all duration-200 hover:scale-105"
+                    >
+                      <XMarkIcon className="h-4 w-4 group-hover:rotate-90 transition-transform duration-200" />
+                      <span>Reset Filter</span>
+                    </button>
                   )}
                 </div>
-
-                {isFiltered && (
-                  <button
-                    onClick={() => {
-                      setSearchTerm("");
-                      setSelectedStatus("all");
-                    }}
-                    className="group flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-gray-100 to-slate-100 hover:from-gray-200 hover:to-slate-200 text-gray-700 rounded-xl font-medium transition-all duration-200 hover:scale-105"
-                  >
-                    <XMarkIcon className="h-4 w-4 group-hover:rotate-90 transition-transform duration-200" />
-                    <span>Reset Filter</span>
-                  </button>
-                )}
-              </div>
+              )}
             </div>
           </div>
 
@@ -302,6 +357,8 @@ export default function UMKMPageContent() {
                 onUpdate={handleUMKMUpdate}
                 onView={handleView}
                 onEdit={handleEdit}
+                error={error}
+                onRetry={handleRetry}
               />
             </div>
           </div>

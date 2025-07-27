@@ -1,0 +1,7 @@
+onlyBuiltDependencies:
+  - '@firebase/util'
+  - '@tailwindcss/oxide'
+  - napi-postinstall
+  - protobufjs
+  - sharp
+  - unrs-resolver

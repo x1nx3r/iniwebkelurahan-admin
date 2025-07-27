@@ -1,7 +1,7 @@
-// admin-kelurahan/next.config.js (or next.config.cjs if you renamed it)
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
+    unoptimized: true, // 🚀 Quick fix: Disable image optimization
     remotePatterns: [
       {
         protocol: "https",

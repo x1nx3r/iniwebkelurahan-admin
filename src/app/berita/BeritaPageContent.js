@@ -1,3 +1,4 @@
+// iniwebumkm-admin/src/app/berita/BeritaPageContent.js
 "use client";
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
@@ -5,7 +6,7 @@ import AdminLayout from "@/components/layout/AdminLayout";
 import BeritaList from "@/components/berita/BeritaList";
 import BeritaFormModal from "@/components/berita/BeritaFormModal";
 import BeritaViewModal from "@/components/berita/BeritaViewModal";
-import { getAllBerita } from "@/lib/firestore";
+import { apiClient } from "@/lib/api-client";
 import {
   PlusIcon,
   MagnifyingGlassIcon,
@@ -13,6 +14,8 @@ import {
   FunnelIcon,
   SparklesIcon,
   XMarkIcon,
+  ExclamationTriangleIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 
 const categories = [
@@ -46,6 +49,7 @@ export default function BeritaPageContent() {
   const [berita, setBerita] = useState([]);
   const [filteredBerita, setFilteredBerita] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(
     searchParams.get("kategori") || "all",
@@ -71,10 +75,16 @@ export default function BeritaPageContent() {
   const loadBerita = async () => {
     try {
       setLoading(true);
-      const data = await getAllBerita();
+      setError(null);
+      console.log("🔍 Loading berita data from API...");
+
+      const data = await apiClient.fetchBerita();
+      console.log("✅ Loaded berita data:", data.length, "articles");
+
       setBerita(data);
     } catch (error) {
-      console.error("Error loading berita:", error);
+      console.error("❌ Error loading berita:", error);
+      setError(error.message || "Failed to load berita data");
     } finally {
       setLoading(false);
     }
@@ -85,11 +95,14 @@ export default function BeritaPageContent() {
 
     // Filter by search term
     if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
       filtered = filtered.filter(
         (item) =>
-          item.judul.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          item.konten.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          item.penulis?.toLowerCase().includes(searchTerm.toLowerCase()),
+          item.judul.toLowerCase().includes(searchLower) ||
+          item.konten.toLowerCase().includes(searchLower) ||
+          item.penulis?.toLowerCase().includes(searchLower) ||
+          item.ringkasan?.toLowerCase().includes(searchLower) ||
+          item.tags?.some((tag) => tag.toLowerCase().includes(searchLower)),
       );
     }
 
@@ -106,8 +119,9 @@ export default function BeritaPageContent() {
     setFilteredBerita(filtered);
   };
 
-  const handleBeritaUpdate = () => {
-    loadBerita(); // Reload data after update/delete
+  const handleBeritaUpdate = async () => {
+    // Reload data after update/delete/create
+    await loadBerita();
     setCreateModalOpen(false);
     setEditModalOpen(false);
     setSelectedBerita(null);
@@ -128,6 +142,10 @@ export default function BeritaPageContent() {
     setCreateModalOpen(true);
   };
 
+  const handleRetry = () => {
+    loadBerita();
+  };
+
   const isFiltered =
     searchTerm || selectedCategory !== "all" || selectedStatus !== "all";
 
@@ -137,6 +155,36 @@ export default function BeritaPageContent() {
   const selectedStatusData = statusOptions.find(
     (status) => status.value === selectedStatus,
   );
+
+  // Error state
+  if (error && !loading && berita.length === 0) {
+    return (
+      <AdminLayout>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl p-8 max-w-md w-full mx-6">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <ExclamationTriangleIcon className="h-8 w-8 text-red-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Gagal Memuat Berita
+                </h3>
+                <p className="text-gray-600 mb-6">{error}</p>
+                <button
+                  onClick={handleRetry}
+                  className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-xl font-medium hover:from-green-600 hover:to-emerald-700 transition-all duration-200 flex items-center space-x-2 mx-auto"
+                >
+                  <ArrowPathIcon className="h-4 w-4" />
+                  <span>Coba Lagi</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
@@ -166,20 +214,46 @@ export default function BeritaPageContent() {
                     <div className="flex items-center space-x-4 mt-3">
                       <div className="flex items-center space-x-2 text-sm text-gray-500">
                         <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                        <span>{berita.length} total berita</span>
+                        <span>
+                          {loading
+                            ? "Memuat..."
+                            : `${berita.length} total berita`}
+                        </span>
                       </div>
                       <div className="flex items-center space-x-2 text-sm text-gray-500">
                         <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                        <span>{filteredBerita.length} ditampilkan</span>
+                        <span>
+                          {loading
+                            ? "..."
+                            : `${filteredBerita.length} ditampilkan`}
+                        </span>
                       </div>
+                      {error && (
+                        <div className="flex items-center space-x-2 text-sm text-red-500">
+                          <ExclamationTriangleIcon className="w-4 h-4" />
+                          <span>Ada kesalahan</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+                  {error && (
+                    <button
+                      onClick={handleRetry}
+                      className="group relative overflow-hidden bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-6 py-3 rounded-2xl font-semibold shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
+                    >
+                      <div className="relative flex items-center space-x-3">
+                        <ArrowPathIcon className="h-5 w-5" />
+                        <span>Refresh</span>
+                      </div>
+                    </button>
+                  )}
                   <button
                     onClick={handleCreate}
-                    className="group relative overflow-hidden bg-gradient-to-r from-green-500 via-emerald-500 to-teal-600 text-white px-8 py-4 rounded-2xl font-semibold shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
+                    disabled={loading}
+                    className="group relative overflow-hidden bg-gradient-to-r from-green-500 via-emerald-500 to-teal-600 text-white px-8 py-4 rounded-2xl font-semibold shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-green-600 via-emerald-600 to-teal-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     <div className="relative flex items-center space-x-3">
@@ -215,12 +289,13 @@ export default function BeritaPageContent() {
                     <MagnifyingGlassIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-green-500 transition-colors duration-200" />
                     <input
                       type="text"
-                      placeholder="Cari berita, judul, konten, atau penulis..."
+                      placeholder="Cari berita, judul, konten, penulis, atau tags..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-12 pr-4 py-4 border border-gray-200/50 rounded-2xl focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200 bg-white/80 backdrop-blur-sm text-gray-900 placeholder-gray-500"
+                      disabled={loading}
+                      className="w-full pl-12 pr-4 py-4 border border-gray-200/50 rounded-2xl focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200 bg-white/80 backdrop-blur-sm text-gray-900 placeholder-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     />
-                    {searchTerm && (
+                    {searchTerm && !loading && (
                       <button
                         onClick={() => setSearchTerm("")}
                         className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
@@ -240,7 +315,8 @@ export default function BeritaPageContent() {
                     <select
                       value={selectedCategory}
                       onChange={(e) => setSelectedCategory(e.target.value)}
-                      className="w-full px-4 py-4 border border-gray-200/50 rounded-2xl focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200 bg-white/80 backdrop-blur-sm appearance-none cursor-pointer"
+                      disabled={loading}
+                      className="w-full px-4 py-4 border border-gray-200/50 rounded-2xl focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200 bg-white/80 backdrop-blur-sm appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {categories.map((cat) => (
                         <option key={cat.value} value={cat.value}>
@@ -263,7 +339,8 @@ export default function BeritaPageContent() {
                     <select
                       value={selectedStatus}
                       onChange={(e) => setSelectedStatus(e.target.value)}
-                      className="w-full px-4 py-4 border border-gray-200/50 rounded-2xl focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200 bg-white/80 backdrop-blur-sm appearance-none cursor-pointer"
+                      disabled={loading}
+                      className="w-full px-4 py-4 border border-gray-200/50 rounded-2xl focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200 bg-white/80 backdrop-blur-sm appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {statusOptions.map((status) => (
                         <option key={status.value} value={status.value}>
@@ -279,7 +356,7 @@ export default function BeritaPageContent() {
 
                 {/* Reset button */}
                 <div className="lg:col-span-1 flex items-end">
-                  {isFiltered && (
+                  {isFiltered && !loading && (
                     <button
                       onClick={() => {
                         setSearchTerm("");
@@ -296,59 +373,62 @@ export default function BeritaPageContent() {
               </div>
 
               {/* Enhanced Results summary */}
-              <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-                <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200/50">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span className="text-sm font-medium text-green-700">
-                      {filteredBerita.length} dari {berita.length} berita
-                    </span>
+              {!loading && (
+                <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200/50">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                      <span className="text-sm font-medium text-green-700">
+                        {filteredBerita.length} dari {berita.length} berita
+                      </span>
+                    </div>
+
+                    {isFiltered && (
+                      <div className="flex flex-wrap gap-2">
+                        {searchTerm && (
+                          <span className="px-3 py-1.5 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-lg border border-yellow-200">
+                            Pencarian: &quot;{searchTerm}&quot;
+                          </span>
+                        )}
+                        {selectedCategory !== "all" && (
+                          <span className="px-3 py-1.5 bg-blue-100 text-blue-800 text-xs font-medium rounded-lg border border-blue-200">
+                            Kategori:{" "}
+                            {
+                              categories.find(
+                                (c) => c.value === selectedCategory,
+                              )?.label
+                            }
+                          </span>
+                        )}
+                        {selectedStatus !== "all" && (
+                          <span className="px-3 py-1.5 bg-green-100 text-green-800 text-xs font-medium rounded-lg border border-green-200">
+                            Status:{" "}
+                            {
+                              statusOptions.find(
+                                (s) => s.value === selectedStatus,
+                              )?.label
+                            }
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {isFiltered && (
-                    <div className="flex flex-wrap gap-2">
-                      {searchTerm && (
-                        <span className="px-3 py-1.5 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-lg border border-yellow-200">
-                          Pencarian: &quot;{searchTerm}&quot;
-                        </span>
-                      )}
-                      {selectedCategory !== "all" && (
-                        <span className="px-3 py-1.5 bg-blue-100 text-blue-800 text-xs font-medium rounded-lg border border-blue-200">
-                          Kategori:{" "}
-                          {
-                            categories.find((c) => c.value === selectedCategory)
-                              ?.label
-                          }
-                        </span>
-                      )}
-                      {selectedStatus !== "all" && (
-                        <span className="px-3 py-1.5 bg-green-100 text-green-800 text-xs font-medium rounded-lg border border-green-200">
-                          Status:{" "}
-                          {
-                            statusOptions.find(
-                              (s) => s.value === selectedStatus,
-                            )?.label
-                          }
-                        </span>
-                      )}
-                    </div>
+                    <button
+                      onClick={() => {
+                        setSearchTerm("");
+                        setSelectedCategory("all");
+                        setSelectedStatus("all");
+                      }}
+                      className="group flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-gray-100 to-slate-100 hover:from-gray-200 hover:to-slate-200 text-gray-700 rounded-xl font-medium transition-all duration-200 hover:scale-105"
+                    >
+                      <XMarkIcon className="h-4 w-4 group-hover:rotate-90 transition-transform duration-200" />
+                      <span>Reset Filter</span>
+                    </button>
                   )}
                 </div>
-
-                {isFiltered && (
-                  <button
-                    onClick={() => {
-                      setSearchTerm("");
-                      setSelectedCategory("all");
-                      setSelectedStatus("all");
-                    }}
-                    className="group flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-gray-100 to-slate-100 hover:from-gray-200 hover:to-slate-200 text-gray-700 rounded-xl font-medium transition-all duration-200 hover:scale-105"
-                  >
-                    <XMarkIcon className="h-4 w-4 group-hover:rotate-90 transition-transform duration-200" />
-                    <span>Reset Filter</span>
-                  </button>
-                )}
-              </div>
+              )}
             </div>
           </div>
 
@@ -362,6 +442,8 @@ export default function BeritaPageContent() {
                 onUpdate={handleBeritaUpdate}
                 onView={handleView}
                 onEdit={handleEdit}
+                error={error}
+                onRetry={handleRetry}
               />
             </div>
           </div>

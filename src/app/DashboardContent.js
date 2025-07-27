@@ -1,7 +1,8 @@
+// iniwebumkm-admin/src/app/DashboardContent.js
 "use client";
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/layout/AdminLayout";
-import { getBeritaStats, getAllBerita } from "@/lib/firestore";
+import { apiClient } from "@/lib/api-client";
 import { formatRelativeTime } from "@/lib/utils";
 import Link from "next/link";
 import {
@@ -16,12 +17,17 @@ import {
   PlusCircleIcon,
   ArrowRightIcon,
   ClockIcon,
+  ExclamationTriangleIcon,
+  BuildingStorefrontIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 
 export default function DashboardContent() {
-  const [stats, setStats] = useState(null);
+  const [beritaStats, setBeritaStats] = useState(null);
+  const [umkmStats, setUmkmStats] = useState(null);
   const [recentBerita, setRecentBerita] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -30,29 +36,108 @@ export default function DashboardContent() {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const [statsData, beritaData] = await Promise.all([
-        getBeritaStats(),
-        getAllBerita(),
+      setError(null);
+      console.log("🔍 Loading dashboard data...");
+
+      const [beritaStatsData, umkmStatsData, beritaData] = await Promise.all([
+        apiClient.getBeritaStats().catch((err) => {
+          console.warn("Failed to load berita stats:", err);
+          return null;
+        }),
+        apiClient.getUMKMStats().catch((err) => {
+          console.warn("Failed to load UMKM stats:", err);
+          return null;
+        }),
+        apiClient.fetchBerita({ limit: 5 }).catch((err) => {
+          console.warn("Failed to load recent berita:", err);
+          return [];
+        }),
       ]);
 
-      setStats(statsData);
-      setRecentBerita(beritaData.slice(0, 5)); // Get 5 most recent
+      console.log("✅ Dashboard data loaded:", {
+        beritaStats: beritaStatsData,
+        umkmStats: umkmStatsData,
+        recentBerita: beritaData.length,
+      });
+
+      setBeritaStats(beritaStatsData);
+      setUmkmStats(umkmStatsData);
+      setRecentBerita(beritaData);
     } catch (error) {
-      console.error("Error loading dashboard data:", error);
+      console.error("❌ Error loading dashboard data:", error);
+      setError(error.message || "Failed to load dashboard data");
     } finally {
       setLoading(false);
     }
   };
 
+  const handleRetry = () => {
+    loadDashboardData();
+  };
+
+  // Error state
+  if (error && !loading && !beritaStats && !umkmStats) {
+    return (
+      <AdminLayout>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl p-8 max-w-md w-full mx-6">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <ExclamationTriangleIcon className="h-8 w-8 text-red-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Gagal Memuat Dashboard
+                </h3>
+                <p className="text-gray-600 mb-6">{error}</p>
+                <button
+                  onClick={handleRetry}
+                  className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-xl font-medium hover:from-green-600 hover:to-emerald-700 transition-all duration-200 flex items-center space-x-2 mx-auto"
+                >
+                  <ArrowPathIcon className="h-4 w-4" />
+                  <span>Coba Lagi</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  // Loading state
   if (loading) {
     return (
       <AdminLayout>
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-          <div className="flex items-center justify-center h-64">
-            <div className="relative">
-              <div className="w-16 h-16 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <SparklesIcon className="h-6 w-6 text-green-600" />
+          <div className="space-y-8 p-6">
+            {/* Welcome Section Skeleton */}
+            <div className="bg-gray-200 rounded-3xl h-32 animate-pulse"></div>
+
+            {/* Stats Cards Skeleton */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+              {[...Array(5)].map((_, i) => (
+                <div
+                  key={i}
+                  className="bg-white/80 rounded-3xl p-6 animate-pulse"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-2">
+                      <div className="h-4 bg-gray-200 rounded w-20"></div>
+                      <div className="h-8 bg-gray-200 rounded w-12"></div>
+                    </div>
+                    <div className="w-14 h-14 bg-gray-200 rounded-2xl"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Content Grid Skeleton */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 bg-white/80 rounded-3xl h-96 animate-pulse"></div>
+              <div className="space-y-6">
+                <div className="bg-white/80 rounded-3xl h-64 animate-pulse"></div>
+                <div className="bg-white/80 rounded-3xl h-64 animate-pulse"></div>
               </div>
             </div>
           </div>
@@ -80,8 +165,8 @@ export default function DashboardContent() {
                       Selamat Datang di Admin Panel
                     </h1>
                     <p className="text-green-100 text-lg">
-                      Kelola berita dan pengumuman Kelurahan Kemayoran dengan
-                      mudah
+                      Kelola berita, pengumuman, dan UMKM Kelurahan Kemayoran
+                      dengan mudah
                     </p>
                     <div className="flex items-center mt-3 space-x-4">
                       <div className="flex items-center space-x-2 text-sm text-green-100">
@@ -109,8 +194,9 @@ export default function DashboardContent() {
             </div>
           </div>
 
-          {/* Enhanced Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Enhanced Stats Cards - Now includes UMKM */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            {/* Berita Stats */}
             <div className="relative group">
               <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-green-600 rounded-3xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity duration-300"></div>
               <div className="relative bg-white/80 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl p-6 group-hover:scale-105 transition-all duration-300">
@@ -120,7 +206,7 @@ export default function DashboardContent() {
                       Total Berita
                     </p>
                     <p className="text-3xl font-bold text-gray-900">
-                      {stats?.totalBerita || 0}
+                      {beritaStats?.totalBerita || 0}
                     </p>
                   </div>
                   <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center shadow-lg">
@@ -139,7 +225,7 @@ export default function DashboardContent() {
                       Dipublikasi
                     </p>
                     <p className="text-3xl font-bold text-gray-900">
-                      {stats?.publishedBerita || 0}
+                      {beritaStats?.publishedBerita || 0}
                     </p>
                   </div>
                   <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
@@ -158,7 +244,7 @@ export default function DashboardContent() {
                       Draft
                     </p>
                     <p className="text-3xl font-bold text-gray-900">
-                      {stats?.draftBerita || 0}
+                      {beritaStats?.draftBerita || 0}
                     </p>
                   </div>
                   <div className="w-14 h-14 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-2xl flex items-center justify-center shadow-lg">
@@ -168,22 +254,40 @@ export default function DashboardContent() {
               </div>
             </div>
 
+            {/* UMKM Stats */}
             <div className="relative group">
               <div className="absolute inset-0 bg-gradient-to-r from-purple-400 to-purple-600 rounded-3xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity duration-300"></div>
               <div className="relative bg-white/80 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl p-6 group-hover:scale-105 transition-all duration-300">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-semibold text-gray-600 mb-2">
-                      Kategori
+                      Total UMKM
                     </p>
                     <p className="text-3xl font-bold text-gray-900">
-                      {stats?.categories
-                        ? Object.keys(stats.categories).length
-                        : 0}
+                      {umkmStats?.totalUMKM || 0}
                     </p>
                   </div>
                   <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-                    <PencilSquareIcon className="h-7 w-7 text-white" />
+                    <BuildingStorefrontIcon className="h-7 w-7 text-white" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative group">
+              <div className="absolute inset-0 bg-gradient-to-r from-indigo-400 to-indigo-600 rounded-3xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity duration-300"></div>
+              <div className="relative bg-white/80 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl p-6 group-hover:scale-105 transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-600 mb-2">
+                      UMKM Aktif
+                    </p>
+                    <p className="text-3xl font-bold text-gray-900">
+                      {umkmStats?.activeUMKM || 0}
+                    </p>
+                  </div>
+                  <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+                    <SparklesIcon className="h-7 w-7 text-white" />
                   </div>
                 </div>
               </div>
@@ -205,13 +309,22 @@ export default function DashboardContent() {
                         Berita Terbaru
                       </h3>
                     </div>
-                    <Link
-                      href="/berita"
-                      className="group flex items-center space-x-2 px-4 py-2 bg-green-50 hover:bg-green-100 text-green-700 rounded-xl font-medium transition-all duration-200 hover:scale-105"
-                    >
-                      <span>Lihat semua</span>
-                      <ArrowRightIcon className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
-                    </Link>
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={handleRetry}
+                        className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+                        title="Refresh data"
+                      >
+                        <ArrowPathIcon className="h-4 w-4" />
+                      </button>
+                      <Link
+                        href="/berita"
+                        className="group flex items-center space-x-2 px-4 py-2 bg-green-50 hover:bg-green-100 text-green-700 rounded-xl font-medium transition-all duration-200 hover:scale-105"
+                      >
+                        <span>Lihat semua</span>
+                        <ArrowRightIcon className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
+                      </Link>
+                    </div>
                   </div>
                 </div>
                 <div className="p-6">
@@ -250,13 +363,23 @@ export default function DashboardContent() {
                                   <div className="flex items-center space-x-1">
                                     <CalendarDaysIcon className="h-3 w-3" />
                                     <span>
-                                      {formatRelativeTime(item.created_at)}
+                                      {item.created_at
+                                        ? formatRelativeTime(item.created_at)
+                                        : formatRelativeTime(item.tanggal)}
                                     </span>
                                   </div>
-                                  <div className="flex items-center space-x-1">
-                                    <UserIcon className="h-3 w-3" />
-                                    <span>{item.penulis}</span>
-                                  </div>
+                                  {item.penulis && (
+                                    <div className="flex items-center space-x-1">
+                                      <UserIcon className="h-3 w-3" />
+                                      <span>{item.penulis}</span>
+                                    </div>
+                                  )}
+                                  {item.priority && item.priority > 0 && (
+                                    <div className="flex items-center space-x-1">
+                                      <SparklesIcon className="h-3 w-3" />
+                                      <span>P{item.priority}</span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                               <span
@@ -328,6 +451,16 @@ export default function DashboardContent() {
                     <ArrowRightIcon className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
                   </Link>
                   <Link
+                    href="/umkm"
+                    className="group w-full flex items-center justify-between px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white rounded-2xl font-semibold transition-all duration-200 hover:scale-105 shadow-lg"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <BuildingStorefrontIcon className="h-5 w-5" />
+                      <span>Kelola UMKM</span>
+                    </div>
+                    <ArrowRightIcon className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
+                  </Link>
+                  <Link
                     href="/berita?filter=draft"
                     className="group w-full flex items-center justify-between px-6 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-semibold transition-all duration-200 hover:scale-105"
                   >
@@ -358,50 +491,110 @@ export default function DashboardContent() {
                       <ChartBarIcon className="h-5 w-5 text-white" />
                     </div>
                     <h3 className="text-xl font-bold text-gray-900">
-                      Breakdown Kategori
+                      Statistik
                     </h3>
                   </div>
                 </div>
                 <div className="p-6">
-                  {stats?.categories ? (
-                    <div className="space-y-4">
-                      {Object.entries(stats.categories).map(
-                        ([category, count], index) => (
-                          <div
-                            key={category}
-                            className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-100"
-                          >
+                  <div className="space-y-4">
+                    {/* Berita Categories */}
+                    {beritaStats?.categories &&
+                      Object.keys(beritaStats.categories).length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                            Kategori Berita
+                          </h4>
+                          <div className="space-y-2">
+                            {Object.entries(beritaStats.categories).map(
+                              ([category, count], index) => (
+                                <div
+                                  key={category}
+                                  className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-100"
+                                >
+                                  <div className="flex items-center space-x-3">
+                                    <div
+                                      className={`w-3 h-3 rounded-full ${
+                                        index === 0
+                                          ? "bg-green-500"
+                                          : index === 1
+                                            ? "bg-blue-500"
+                                            : index === 2
+                                              ? "bg-yellow-500"
+                                              : "bg-purple-500"
+                                      }`}
+                                    ></div>
+                                    <span className="text-sm font-semibold text-gray-700 capitalize">
+                                      {category}
+                                    </span>
+                                  </div>
+                                  <span className="text-lg font-bold text-gray-900">
+                                    {count}
+                                  </span>
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                    {/* UMKM Status */}
+                    {umkmStats && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                          Status UMKM
+                        </h4>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
                             <div className="flex items-center space-x-3">
-                              <div
-                                className={`w-3 h-3 rounded-full ${
-                                  index === 0
-                                    ? "bg-green-500"
-                                    : index === 1
-                                      ? "bg-blue-500"
-                                      : index === 2
-                                        ? "bg-yellow-500"
-                                        : "bg-purple-500"
-                                }`}
-                              ></div>
-                              <span className="text-sm font-semibold text-gray-700 capitalize">
-                                {category}
+                              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                              <span className="text-sm font-semibold text-green-700">
+                                Aktif
                               </span>
                             </div>
-                            <span className="text-lg font-bold text-gray-900">
-                              {count}
+                            <span className="text-lg font-bold text-green-900">
+                              {umkmStats.activeUMKM}
                             </span>
                           </div>
-                        ),
+                          <div className="flex items-center justify-between p-3 bg-gradient-to-r from-red-50 to-pink-50 rounded-xl border border-red-100">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                              <span className="text-sm font-semibold text-red-700">
+                                Tidak Aktif
+                              </span>
+                            </div>
+                            <span className="text-lg font-bold text-red-900">
+                              {umkmStats.inactiveUMKM}
+                            </span>
+                          </div>
+                          {umkmStats.featuredUMKM > 0 && (
+                            <div className="flex items-center justify-between p-3 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl border border-yellow-100">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                <span className="text-sm font-semibold text-yellow-700">
+                                  Featured
+                                </span>
+                              </div>
+                              <span className="text-lg font-bold text-yellow-900">
+                                {umkmStats.featuredUMKM}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* No data state */}
+                    {(!beritaStats?.categories ||
+                      Object.keys(beritaStats.categories).length === 0) &&
+                      !umkmStats && (
+                        <div className="text-center py-8">
+                          <ChartBarIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                          <p className="text-sm text-gray-500">
+                            Belum ada data statistik
+                          </p>
+                        </div>
                       )}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <ChartBarIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                      <p className="text-sm text-gray-500">
-                        Belum ada data kategori
-                      </p>
-                    </div>
-                  )}
+                  </div>
                 </div>
               </div>
             </div>

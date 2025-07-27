@@ -1,3 +1,4 @@
+// iniwebumkm-admin/src/components/berita/BeritaList.js
 "use client";
 import { useState } from "react";
 import Image from "next/image";
@@ -7,7 +8,7 @@ import {
   getCategoryColor,
   getStatusColor,
 } from "@/lib/utils";
-import { deleteBerita } from "@/lib/firestore";
+import { apiClient } from "@/lib/api-client";
 import DeleteConfirmModal from "./DeleteConfirmModal";
 import toast from "react-hot-toast";
 import {
@@ -20,6 +21,8 @@ import {
   PhotoIcon,
   StarIcon,
   ChartBarIcon,
+  ExclamationTriangleIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 
 export default function BeritaList({
@@ -28,6 +31,8 @@ export default function BeritaList({
   onUpdate,
   onView,
   onEdit,
+  error,
+  onRetry,
 }) {
   const [deleteModal, setDeleteModal] = useState({ open: false, item: null });
   const [deleting, setDeleting] = useState(false);
@@ -35,18 +40,62 @@ export default function BeritaList({
   const handleDelete = async (item) => {
     try {
       setDeleting(true);
-      await deleteBerita(item.id);
+      console.log("🗑️ Deleting berita:", item.id, item.judul);
+
+      await apiClient.deleteBerita(item.id);
+
       toast.success("✅ Berita berhasil dihapus!");
+      console.log("✅ Successfully deleted berita:", item.id);
+
       onUpdate();
       setDeleteModal({ open: false, item: null });
     } catch (error) {
-      console.error("Error deleting berita:", error);
-      toast.error("❌ Gagal menghapus berita");
+      console.error("❌ Error deleting berita:", error);
+      toast.error(
+        `❌ Gagal menghapus berita: ${error.message || "Unknown error"}`,
+      );
     } finally {
       setDeleting(false);
     }
   };
 
+  const handleViewClick = (item) => {
+    console.log("👁️ Viewing berita:", item.id, item.judul);
+    onView(item);
+  };
+
+  const handleEditClick = (item) => {
+    console.log("✏️ Editing berita:", item.id, item.judul);
+    onEdit(item);
+  };
+
+  // Error state
+  if (error && !loading) {
+    return (
+      <div className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl">
+        <div className="p-16 text-center">
+          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <ExclamationTriangleIcon className="h-10 w-10 text-red-600" />
+          </div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">
+            Gagal Memuat Berita
+          </h3>
+          <p className="text-gray-600 max-w-md mx-auto mb-6">{error}</p>
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              className="inline-flex items-center space-x-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-xl font-medium hover:from-green-600 hover:to-emerald-700 transition-all duration-200"
+            >
+              <ArrowPathIcon className="h-4 w-4" />
+              <span>Coba Lagi</span>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Loading state
   if (loading) {
     return (
       <div className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl">
@@ -62,6 +111,11 @@ export default function BeritaList({
                     <div className="flex space-x-2">
                       <div className="h-3 bg-gray-200 rounded-full w-16"></div>
                       <div className="h-3 bg-gray-200 rounded-full w-20"></div>
+                      <div className="h-3 bg-gray-200 rounded-full w-24"></div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <div className="h-6 bg-gray-200 rounded-full w-20"></div>
+                      <div className="h-6 bg-gray-200 rounded-full w-16"></div>
                     </div>
                   </div>
                   <div className="flex space-x-2">
@@ -78,6 +132,7 @@ export default function BeritaList({
     );
   }
 
+  // Empty state
   if (berita.length === 0) {
     return (
       <div className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl">
@@ -92,6 +147,15 @@ export default function BeritaList({
             Mulai dengan membuat berita baru atau ubah filter pencarian untuk
             menemukan konten yang Anda cari.
           </p>
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              className="mt-4 inline-flex items-center space-x-2 text-gray-500 hover:text-gray-700 transition-colors duration-200"
+            >
+              <ArrowPathIcon className="h-4 w-4" />
+              <span>Refresh</span>
+            </button>
+          )}
         </div>
       </div>
     );
@@ -116,12 +180,17 @@ export default function BeritaList({
                       fill
                       className="object-cover"
                       sizes="80px"
+                      onError={(e) => {
+                        e.target.style.display = "none";
+                        e.target.nextSibling.style.display = "flex";
+                      }}
                     />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center">
-                      <PhotoIcon className="h-6 w-6 text-blue-600" />
-                    </div>
-                  )}
+                  ) : null}
+                  <div
+                    className={`w-full h-full bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center ${item.gambar ? "hidden" : "flex"}`}
+                  >
+                    <PhotoIcon className="h-6 w-6 text-blue-600" />
+                  </div>
                 </div>
 
                 {/* Content */}
@@ -130,15 +199,27 @@ export default function BeritaList({
                   <div className="flex items-start justify-between mb-3">
                     <h3
                       className="text-lg font-semibold text-gray-900 line-clamp-2 flex-1 cursor-pointer hover:text-blue-600 transition-colors duration-200 group-hover:text-blue-700"
-                      onClick={() => onView(item)}
+                      onClick={() => handleViewClick(item)}
+                      title={item.judul}
                     >
                       {item.judul}
                     </h3>
                     <div className="flex items-center space-x-2 flex-shrink-0 ml-4">
+                      {/* Priority indicator for high priority items */}
+                      {item.priority && item.priority >= 7 && (
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200 flex items-center space-x-1">
+                          <ChartBarIcon className="h-3 w-3" />
+                          <span>P{item.priority}</span>
+                        </span>
+                      )}
+
                       {/* Category badge */}
-                      <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-medium ${getCategoryColor(item.kategori)}`}
+                      >
                         {item.kategori}
                       </span>
+
                       {/* Status badge */}
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -151,6 +232,7 @@ export default function BeritaList({
                           ? "📢 Published"
                           : "📝 Draft"}
                       </span>
+
                       {/* Featured badge */}
                       {item.featured && (
                         <span className="px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700 border border-yellow-200 flex items-center space-x-1">
@@ -172,26 +254,43 @@ export default function BeritaList({
                   <div className="flex items-center flex-wrap gap-4 text-sm text-gray-500 mb-3">
                     <div className="flex items-center space-x-1">
                       <CalendarDaysIcon className="h-4 w-4" />
-                      <span title={formatDate(item.created_at)}>
-                        {formatRelativeTime(item.created_at)}
+                      <span title={formatDate(item.created_at || item.tanggal)}>
+                        {formatRelativeTime(item.created_at || item.tanggal)}
                       </span>
                     </div>
+
                     {item.penulis && (
                       <div className="flex items-center space-x-1">
                         <UserIcon className="h-4 w-4" />
                         <span>{item.penulis}</span>
                       </div>
                     )}
+
                     {item.view_count !== undefined && (
                       <div className="flex items-center space-x-1">
                         <EyeIcon className="h-4 w-4" />
                         <span>{item.view_count} views</span>
                       </div>
                     )}
-                    <div className="flex items-center space-x-1">
-                      <ChartBarIcon className="h-4 w-4" />
-                      <span>Priority {item.priority || 5}</span>
-                    </div>
+
+                    {item.priority && item.priority !== 5 && (
+                      <div className="flex items-center space-x-1">
+                        <ChartBarIcon className="h-4 w-4" />
+                        <span>Priority {item.priority}</span>
+                      </div>
+                    )}
+
+                    {/* Show updated date if different from created date */}
+                    {item.updated_at &&
+                      item.updated_at !== item.created_at &&
+                      item.updated_at !== item.tanggal && (
+                        <div className="flex items-center space-x-1 text-orange-600">
+                          <CalendarDaysIcon className="h-4 w-4" />
+                          <span title={formatDate(item.updated_at)}>
+                            Edited {formatRelativeTime(item.updated_at)}
+                          </span>
+                        </div>
+                      )}
                   </div>
 
                   {/* Tags */}
@@ -215,19 +314,39 @@ export default function BeritaList({
                       </div>
                     </div>
                   )}
+
+                  {/* Category-specific info */}
+                  {item.kategori === "kegiatan" &&
+                    (item.lokasi || item.pendaftaran) && (
+                      <div className="mt-2 text-xs text-blue-600">
+                        {item.lokasi && <span>📍 {item.lokasi}</span>}
+                        {item.lokasi && item.pendaftaran && (
+                          <span className="mx-2">•</span>
+                        )}
+                        {item.pendaftaran && <span>📝 {item.pendaftaran}</span>}
+                      </div>
+                    )}
+
+                  {(item.kategori === "pengumuman" ||
+                    item.kategori === "layanan") &&
+                    item.kontak && (
+                      <div className="mt-2 text-xs text-green-600">
+                        📞 Info kontak tersedia
+                      </div>
+                    )}
                 </div>
 
                 {/* Action buttons */}
                 <div className="flex items-center space-x-1 flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
                   <button
-                    onClick={() => onView(item)}
+                    onClick={() => handleViewClick(item)}
                     className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200 hover:scale-110"
                     title="Lihat detail"
                   >
                     <EyeIcon className="h-4 w-4" />
                   </button>
                   <button
-                    onClick={() => onEdit(item)}
+                    onClick={() => handleEditClick(item)}
                     className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all duration-200 hover:scale-110"
                     title="Edit"
                   >
@@ -237,6 +356,7 @@ export default function BeritaList({
                     onClick={() => setDeleteModal({ open: true, item })}
                     className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 hover:scale-110"
                     title="Hapus"
+                    disabled={deleting}
                   >
                     <TrashIcon className="h-4 w-4" />
                   </button>
@@ -254,6 +374,7 @@ export default function BeritaList({
         onConfirm={() => handleDelete(deleteModal.item)}
         title={deleteModal.item?.judul}
         loading={deleting}
+        description={`Artikel "${deleteModal.item?.judul}" akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.`}
       />
     </>
   );

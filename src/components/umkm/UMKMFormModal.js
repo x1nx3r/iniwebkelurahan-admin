@@ -1,7 +1,7 @@
 // iniwebumkm-admin/src/components/umkm/UMKMFormModal.js
 "use client";
 import { useState, useEffect } from "react";
-import { createUMKM, updateUMKM } from "@/lib/firestore";
+import { apiClient } from "@/lib/api-client";
 import ImageUpload from "@/components/ui/ImageUpload";
 import {
   XMarkIcon,
@@ -13,6 +13,7 @@ import {
   PhoneIcon,
   SparklesIcon,
   GlobeAltIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 
@@ -50,18 +51,20 @@ export default function UMKMFormModal({
     featured: false,
     foto: "",
     sosialMedia: {},
+    kategori: "",
+    produk: "",
   });
 
   const [submitting, setSubmitting] = useState(false);
   const [imageData, setImageData] = useState(null);
   const [socialMediaInputs, setSocialMediaInputs] = useState({});
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (open && initialData) {
       // Debug logging
-      console.log("Initial data received:", initialData);
-      console.log("Initial data keys:", Object.keys(initialData));
-      console.log("Document ID options:", {
+      console.log("🔄 Initializing UMKM form with data:", initialData);
+      console.log("📋 Available ID fields:", {
         id: initialData.id,
         slug: initialData.slug,
         docId: initialData.docId,
@@ -77,8 +80,11 @@ export default function UMKMFormModal({
         featured: initialData.featured || false,
         foto: initialData.foto || "",
         sosialMedia: initialData.sosialMedia || {},
+        kategori: initialData.kategori || "",
+        produk: initialData.produk || "",
         // Preserve the document ID for editing
         slug: initialData.slug || initialData.id,
+        docId: initialData.docId, // Keep original docId for reference
       });
 
       if (initialData.foto) {
@@ -93,6 +99,7 @@ export default function UMKMFormModal({
       setSocialMediaInputs(initialData.sosialMedia || {});
     } else if (open && !initialData) {
       // Reset form for new UMKM
+      console.log("🆕 Resetting form for new UMKM");
       setFormData({
         nama: "",
         pemilik: "",
@@ -103,9 +110,16 @@ export default function UMKMFormModal({
         featured: false,
         foto: "",
         sosialMedia: {},
+        kategori: "",
+        produk: "",
       });
       setImageData(null);
       setSocialMediaInputs({});
+    }
+
+    // Reset error when modal opens/closes
+    if (open) {
+      setError(null);
     }
   }, [open, initialData]);
 
@@ -161,18 +175,25 @@ export default function UMKMFormModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null);
 
     if (
       !formData.nama.trim() ||
       !formData.pemilik.trim() ||
       !formData.deskripsi.trim()
     ) {
-      toast.error("Nama UMKM, pemilik, dan deskripsi wajib diisi");
+      const errorMsg = "Nama UMKM, pemilik, dan deskripsi wajib diisi";
+      toast.error(errorMsg);
+      setError(errorMsg);
       return;
     }
 
     try {
       setSubmitting(true);
+      console.log("💾 Submitting UMKM form:", {
+        ...formData,
+        sosialMedia: Object.keys(formData.sosialMedia).length,
+      });
 
       const dataToSubmit = {
         ...formData,
@@ -180,61 +201,89 @@ export default function UMKMFormModal({
         slug: isEdit
           ? formData.slug || generateSlug(formData.nama)
           : generateSlug(formData.nama),
+        // Ensure empty strings for optional fields instead of undefined
+        alamat: formData.alamat || "",
+        telefon: formData.telefon || "",
+        kategori: formData.kategori || "",
+        produk: formData.produk || "",
+        foto: formData.foto || "",
+        sosialMedia: formData.sosialMedia || {},
       };
 
+      // Remove internal fields that shouldn't be sent to API
+      const { docId, ...cleanDataToSubmit } = dataToSubmit;
+
       if (isEdit && initialData) {
-        // Determine the correct document ID to use
+        // Determine the correct document ID to use for API call
         let documentId;
 
         // Try different ID fields in order of preference
         if (
+          initialData.docId &&
+          typeof initialData.docId === "string" &&
+          initialData.docId.length > 0
+        ) {
+          documentId = initialData.docId;
+        } else if (
+          initialData.slug &&
           typeof initialData.slug === "string" &&
           initialData.slug.length > 0
         ) {
           documentId = initialData.slug;
         } else if (
+          initialData.id &&
           typeof initialData.id === "string" &&
           initialData.id.length > 0
         ) {
           documentId = initialData.id;
-        } else if (
-          typeof initialData.docId === "string" &&
-          initialData.docId.length > 0
-        ) {
-          documentId = initialData.docId;
         } else {
           // Fallback: generate from name
           documentId = generateSlug(initialData.nama);
         }
 
-        console.log("Edit mode - Document ID determination:");
-        console.log("- Initial data:", initialData);
-        console.log("- Selected document ID:", documentId);
-        console.log("- Document ID type:", typeof documentId);
-        console.log("- Data to submit:", dataToSubmit);
+        console.log("📝 Updating UMKM:", {
+          documentId,
+          initialData: {
+            id: initialData.id,
+            slug: initialData.slug,
+            docId: initialData.docId,
+            nama: initialData.nama,
+          },
+          dataKeys: Object.keys(cleanDataToSubmit),
+        });
 
         if (!documentId || typeof documentId !== "string") {
           throw new Error("Invalid document ID for update operation");
         }
 
-        await updateUMKM(documentId, dataToSubmit);
+        await apiClient.updateUMKM(documentId, cleanDataToSubmit);
         toast.success("UMKM berhasil diperbarui!");
       } else {
-        console.log("Create mode - Data to submit:", dataToSubmit);
-        await createUMKM(dataToSubmit);
+        console.log("✨ Creating new UMKM:", cleanDataToSubmit.nama);
+        const result = await apiClient.createUMKM(cleanDataToSubmit);
+        console.log("✅ Created UMKM:", result);
         toast.success("UMKM berhasil ditambahkan!");
       }
 
       onSuccess();
     } catch (error) {
-      console.error("Error saving UMKM:", error);
-      console.error("Error details:", {
+      console.error("❌ Error saving UMKM:", error);
+      const errorMsg = error.message || "Gagal menyimpan UMKM";
+      setError(errorMsg);
+      toast.error(errorMsg);
+
+      // Log detailed error info for debugging
+      console.error("🔍 Error details:", {
         message: error.message,
         initialData,
-        formData,
-        isEdit,
+        formData: {
+          nama: formData.nama,
+          isEdit,
+          hasSlug: !!formData.slug,
+          hasDocId: !!formData.docId,
+        },
+        stack: error.stack,
       });
-      toast.error(error.message || "Gagal menyimpan UMKM");
     } finally {
       setSubmitting(false);
     }
@@ -287,13 +336,28 @@ export default function UMKMFormModal({
               <XMarkIcon className="h-5 w-5 text-gray-500" />
             </button>
           </div>
+
+          {/* Error Alert */}
+          {error && (
+            <div className="mt-4 bg-red-50 border border-red-200 rounded-xl p-4">
+              <div className="flex items-center space-x-3">
+                <ExclamationTriangleIcon className="h-5 w-5 text-red-600 flex-shrink-0" />
+                <div>
+                  <h3 className="text-sm font-semibold text-red-800">
+                    Terjadi Kesalahan
+                  </h3>
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Form Content */}
         <div className="overflow-y-auto max-h-[calc(95vh-200px)]">
           <form onSubmit={handleSubmit} className="p-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Main content - Keep all your existing form fields exactly as they are */}
+              {/* Main content */}
               <div className="lg:col-span-2 space-y-8">
                 {/* Basic Information */}
                 <div className="bg-gradient-to-r from-blue-50/80 to-indigo-50/80 backdrop-blur-sm rounded-2xl p-6 border border-white/50 shadow-sm">
@@ -337,6 +401,38 @@ export default function UMKMFormModal({
                         required
                         className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/80 backdrop-blur-sm"
                         placeholder="Contoh: Ibu Sari Wijaya"
+                        disabled={submitting}
+                      />
+                    </div>
+
+                    {/* Kategori */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-3">
+                        Kategori Usaha
+                      </label>
+                      <input
+                        type="text"
+                        name="kategori"
+                        value={formData.kategori}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/80 backdrop-blur-sm"
+                        placeholder="Contoh: Kuliner, Fashion, Kerajinan"
+                        disabled={submitting}
+                      />
+                    </div>
+
+                    {/* Produk */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-3">
+                        Produk/Layanan
+                      </label>
+                      <input
+                        type="text"
+                        name="produk"
+                        value={formData.produk}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/80 backdrop-blur-sm"
+                        placeholder="Contoh: Nasi Gudeg, Pakaian Muslim, Tas Rajut"
                         disabled={submitting}
                       />
                     </div>
@@ -555,6 +651,12 @@ export default function UMKMFormModal({
                       <span className="text-gray-600">Foto:</span>
                       <span className="font-medium">
                         {imageData ? "📷 Ada" : "❌ Tidak ada"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Kategori:</span>
+                      <span className="font-medium">
+                        {formData.kategori || "Belum diisi"}
                       </span>
                     </div>
                     <div className="flex justify-between">

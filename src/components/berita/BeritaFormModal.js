@@ -1,7 +1,7 @@
-// admin-kelurahan/src/components/berita/BeritaFormModal.js
+// iniwebumkm-admin/src/components/berita/BeritaFormModal.js
 "use client";
 import { useState, useEffect } from "react";
-import { createBerita, updateBerita } from "@/lib/firestore";
+import { apiClient } from "@/lib/api-client";
 import ImageUpload from "@/components/ui/ImageUpload";
 import {
   XMarkIcon,
@@ -12,6 +12,7 @@ import {
   MapPinIcon,
   PhoneIcon,
   SparklesIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 
@@ -58,12 +59,15 @@ export default function BeritaFormModal({
   const [tagInput, setTagInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [imageData, setImageData] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (open && initialData) {
+      console.log("🔄 Initializing form with data:", initialData);
       setFormData({
         ...initialData,
         tags: initialData.tags || [],
+        priority: initialData.priority || 5,
       });
 
       if (initialData.gambar) {
@@ -75,6 +79,7 @@ export default function BeritaFormModal({
       }
     } else if (open && !initialData) {
       // Reset form for new berita
+      console.log("🆕 Resetting form for new berita");
       setFormData({
         judul: "",
         ringkasan: "",
@@ -93,6 +98,11 @@ export default function BeritaFormModal({
       });
       setImageData(null);
       setTagInput("");
+    }
+
+    // Reset error when modal opens/closes
+    if (open) {
+      setError(null);
     }
   }, [open, initialData]);
 
@@ -150,43 +160,106 @@ export default function BeritaFormModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null);
 
     if (!formData.judul.trim() || !formData.konten.trim()) {
-      toast.error("Judul dan konten wajib diisi");
+      const errorMsg = "Judul dan konten wajib diisi";
+      toast.error(errorMsg);
+      setError(errorMsg);
       return;
     }
 
     try {
       setSubmitting(true);
+      console.log("💾 Submitting form data:", {
+        ...formData,
+        tags: formData.tags.length,
+      });
 
       const dataToSubmit = {
         ...formData,
         view_count: formData.view_count || 0,
         priority: Number(formData.priority),
+        // Ensure empty strings for optional fields instead of undefined
+        lokasi: formData.lokasi || "",
+        pendaftaran: formData.pendaftaran || "",
+        kontak: formData.kontak || "",
+        penulis: formData.penulis || "",
+        ringkasan: formData.ringkasan || "",
+        gambar_alt: formData.gambar_alt || "",
       };
 
       if (isEdit && initialData?.id) {
-        await updateBerita(initialData.id, dataToSubmit);
+        console.log("📝 Updating berita with ID:", initialData.id);
+        await apiClient.updateBerita(initialData.id, dataToSubmit);
         toast.success("Berita berhasil diperbarui!");
       } else {
-        await createBerita(dataToSubmit);
+        console.log("✨ Creating new berita");
+        const result = await apiClient.createBerita(dataToSubmit);
+        console.log("✅ Created berita:", result);
         toast.success("Berita berhasil dibuat!");
       }
 
       onSuccess();
     } catch (error) {
-      console.error("Error saving berita:", error);
-      toast.error("Gagal menyimpan berita");
+      console.error("❌ Error saving berita:", error);
+      const errorMsg = error.message || "Gagal menyimpan berita";
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleSaveAs = (status) => {
-    setFormData((prev) => ({ ...prev, status }));
-    setTimeout(() => {
-      document.getElementById("berita-form-modal").requestSubmit();
-    }, 0);
+  const handleSaveAs = async (status) => {
+    setError(null);
+
+    if (!formData.judul.trim() || !formData.konten.trim()) {
+      const errorMsg = "Judul dan konten wajib diisi";
+      toast.error(errorMsg);
+      setError(errorMsg);
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      console.log(`💾 Saving as ${status}:`, formData.judul);
+
+      const dataToSubmit = {
+        ...formData,
+        status,
+        view_count: formData.view_count || 0,
+        priority: Number(formData.priority),
+        lokasi: formData.lokasi || "",
+        pendaftaran: formData.pendaftaran || "",
+        kontak: formData.kontak || "",
+        penulis: formData.penulis || "",
+        ringkasan: formData.ringkasan || "",
+        gambar_alt: formData.gambar_alt || "",
+      };
+
+      if (isEdit && initialData?.id) {
+        await apiClient.updateBerita(initialData.id, dataToSubmit);
+        toast.success(
+          `Berita berhasil ${status === "published" ? "dipublikasi" : "disimpan sebagai draft"}!`,
+        );
+      } else {
+        const result = await apiClient.createBerita(dataToSubmit);
+        console.log("✅ Created berita:", result);
+        toast.success(
+          `Berita berhasil ${status === "published" ? "dipublikasi" : "disimpan sebagai draft"}!`,
+        );
+      }
+
+      onSuccess();
+    } catch (error) {
+      console.error("❌ Error saving berita:", error);
+      const errorMsg = error.message || "Gagal menyimpan berita";
+      setError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleBackdropClick = (e) => {
@@ -236,6 +309,21 @@ export default function BeritaFormModal({
               <XMarkIcon className="h-5 w-5 text-gray-500" />
             </button>
           </div>
+
+          {/* Error Alert */}
+          {error && (
+            <div className="mt-4 bg-red-50 border border-red-200 rounded-xl p-4">
+              <div className="flex items-center space-x-3">
+                <ExclamationTriangleIcon className="h-5 w-5 text-red-600 flex-shrink-0" />
+                <div>
+                  <h3 className="text-sm font-semibold text-red-800">
+                    Terjadi Kesalahan
+                  </h3>
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Form Content */}
@@ -502,6 +590,9 @@ export default function BeritaFormModal({
                         <span>Rendah</span>
                         <span>Tinggi</span>
                       </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Berita dengan prioritas tinggi akan muncul di atas
+                      </p>
                     </div>
 
                     <div className="bg-white/60 rounded-xl p-4 border border-white/50">
@@ -617,6 +708,12 @@ export default function BeritaFormModal({
                       </span>
                     </div>
                     <div className="flex justify-between">
+                      <span className="text-gray-600">Prioritas:</span>
+                      <span className="font-medium">
+                        {formData.priority}/10
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
                       <span className="text-gray-600">Featured:</span>
                       <span className="font-medium">
                         {formData.featured ? "⭐ Ya" : "❌ Tidak"}
@@ -658,17 +755,35 @@ export default function BeritaFormModal({
                 type="button"
                 onClick={() => handleSaveAs("draft")}
                 disabled={submitting}
-                className="px-6 py-3 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-xl font-medium transition-all duration-200 hover:scale-105 disabled:opacity-50"
+                className="px-6 py-3 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-xl font-medium transition-all duration-200 hover:scale-105 disabled:opacity-50 flex items-center space-x-2"
               >
-                {submitting ? "Menyimpan..." : "💾 Simpan Draft"}
+                {submitting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-yellow-800 border-t-transparent rounded-full animate-spin"></div>
+                    <span>Menyimpan...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>💾 Simpan Draft</span>
+                  </>
+                )}
               </button>
               <button
                 type="button"
                 onClick={() => handleSaveAs("published")}
                 disabled={submitting}
-                className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl font-medium transition-all duration-200 hover:scale-105 shadow-lg disabled:opacity-50"
+                className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl font-medium transition-all duration-200 hover:scale-105 shadow-lg disabled:opacity-50 flex items-center space-x-2"
               >
-                {submitting ? "Mempublikasi..." : "🚀 Publikasikan"}
+                {submitting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Mempublikasi...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>🚀 Publikasikan</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
