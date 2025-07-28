@@ -132,6 +132,13 @@ export default function BeritaList({
     );
   }
 
+  // Sort berita by created_at or tanggal (descending)
+  const sortedBerita = [...berita].sort((a, b) => {
+    const dateA = new Date(a.updated_at || a.tanggal);
+    const dateB = new Date(b.updated_at || b.tanggal);
+    return dateB - dateA; // Newest first
+  });
+
   // Empty state
   if (berita.length === 0) {
     return (
@@ -165,7 +172,7 @@ export default function BeritaList({
     <>
       <div className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl overflow-hidden">
         <div className="divide-y divide-gray-100">
-          {berita.map((item, index) => (
+          {sortedBerita.map((item, index) => (
             <div
               key={item.id}
               className="p-6 hover:bg-white/50 transition-all duration-200 group"

@@ -118,6 +118,19 @@ export default function UMKMList({
     return iconMap[platform.toLowerCase()] || "🌐";
   };
 
+  function toDate(val) {
+    if (!val) return new Date(0);
+    if (typeof val === "object" && typeof val.toDate === "function")
+      return val.toDate();
+    return new Date(val);
+  }
+
+  const sortedUMKM = [...umkm].sort((a, b) => {
+    const dateA = toDate(a.updatedAt || a.createdAt);
+    const dateB = toDate(b.updatedAt || b.createdAt);
+    return dateB - dateA;
+  });
+
   // Error state
   if (error && !loading) {
     return (
@@ -215,7 +228,7 @@ export default function UMKMList({
     <>
       <div className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl overflow-hidden">
         <div className="divide-y divide-gray-100">
-          {umkm.map((item, index) => (
+          {sortedUMKM.map((item, index) => (
             <div
               key={item.docId || item.slug || item.id || index}
               className="p-6 hover:bg-white/50 transition-all duration-200 group"
